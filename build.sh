@@ -69,6 +69,7 @@ Comment=$APP_NAME
 Exec=$BIN_PATH
 Icon=$BIN_PATH
 Terminal=false
+Categories=Network;Languages;Office;
 EOF
     chmod +x "$DESKTOP_FILE"
 fi
