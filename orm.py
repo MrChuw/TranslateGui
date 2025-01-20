@@ -1,14 +1,25 @@
 import sqlite3
-import json
+import os
+import platform
 
 class MiniORM:
     def __init__(self, db_name="settings.db"):
-        self.connection = sqlite3.connect(db_name)
+        system = platform.system()
+        if system == "Linux":
+            data_dir = os.path.expanduser("~/.local/share/LibreTranslateGUI/")
+        elif system == "Windows":
+            data_dir = os.path.join(os.getenv("APPDATA"), "LibreTranslateGUI")
+        else:
+            data_dir = os.path.expanduser("~/.local/share/LibreTranslateGUI/")
+
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+        self.db_path = os.path.join(data_dir, db_name)
+        self.connection = sqlite3.connect(self.db_path)
         self.cursor = self.connection.cursor()
         self._create_tables()
 
     def _create_tables(self):
-        # Cria tabelas para armazenar os dados
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS api_settings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +37,6 @@ class MiniORM:
         self.connection.commit()
 
     def save_api_settings(self, api_url, api_key):
-        # Salva configurações da API
         self.cursor.execute("""
         INSERT INTO api_settings (api_url, api_key)
         VALUES (?, ?)
@@ -34,7 +44,6 @@ class MiniORM:
         self.connection.commit()
 
     def save_language_settings(self, left_language, right_language):
-        # Salva configurações de idiomas
         self.cursor.execute("""
         INSERT INTO language_settings (left_language, right_language)
         VALUES (?, ?)
@@ -42,7 +51,6 @@ class MiniORM:
         self.connection.commit()
 
     def get_api_settings(self):
-        # Recupera a última configuração de API salva
         self.cursor.execute("""
         SELECT api_url, api_key FROM api_settings
         ORDER BY id DESC LIMIT 1
@@ -53,7 +61,6 @@ class MiniORM:
         return None
 
     def get_language_settings(self):
-        # Recupera a última configuração de idiomas salva
         self.cursor.execute("""
         SELECT left_language, right_language FROM language_settings
         ORDER BY id DESC LIMIT 1
@@ -64,7 +71,6 @@ class MiniORM:
         return None
 
     def close(self):
-        # Fecha a conexão com o banco de dados
         self.connection.close()
 
 

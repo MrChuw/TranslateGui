@@ -1,5 +1,4 @@
 import os
-from enum import Enum
 from functools import partial
 from pathlib import Path
 from logging import Logger
@@ -103,41 +102,6 @@ class TranslationThread(QThread):
         self.send_text_update.emit(translated_text)
 
 
-class WorkerStatusButton(QPushButton):
-    class Status(Enum):
-        NOT_STARTED = 0
-        RUNNING = 1
-        DONE = 2
-
-    def __init__(self, text, bound_worker_function):
-        super().__init__(text)
-        self.text = text
-        self.bound_worker_function = bound_worker_function
-        self.clicked.connect(self.clicked_handler)
-        self.set_status(self.Status.NOT_STARTED)
-
-    def clicked_handler(self):
-        Logger.info("WorkerStatusButton clicked_handler")
-        if self.status == self.Status.NOT_STARTED:
-            self.worker_thread = WorkerThread(self.bound_worker_function)
-            self.worker_thread.finished.connect(self.finished_handler)
-            self.set_status(self.Status.RUNNING)
-            self.worker_thread.start()
-
-    def finished_handler(self):
-        Logger.info("WorkerStatusButton finished_handler")
-        self.set_status(self.Status.DONE)
-
-    def set_status(self, status):
-        self.status = status
-        if self.status == self.Status.NOT_STARTED:
-            self.setText(self.text)
-        elif self.status == self.Status.RUNNING:
-            self.setText("⌛")
-        elif self.status == self.Status.DONE:
-            self.setText("✓")
-
-
 class GUIWindow(QMainWindow):
     # Above this number of characters in the input text will show a
     # message in the output text while the translation
@@ -188,7 +152,6 @@ class GUIWindow(QMainWindow):
         # TextEdits
         self.left_textEdit = PlainPasteTextEdit()
         self.left_textEdit.setPlaceholderText("Source")
-        # self.left_textEdit.textChanged.connect(self.translate)
         self.left_textEdit.textChanged.connect(self.on_text_changed)
         self.right_textEdit = PlainPasteTextEdit()
         self.right_textEdit.setPlaceholderText("Target")
@@ -199,7 +162,7 @@ class GUIWindow(QMainWindow):
 
         # Menu
         self.menu = self.menuBar()
-        self.manage_packages_action = self.menu.addAction("Edit Api")
+        self.manage_packages_action = self.menu.addAction("Edit API URL and Key")
         self.manage_packages_action.triggered.connect(self.manage_packages_action_triggered)
 
 
@@ -291,7 +254,7 @@ class GUIWindow(QMainWindow):
             if len(language_names) > 0:
                 self.left_language_combo.setCurrentIndex(0)
             if len(language_names) > 1:
-                self.right_language_combo.setCurrentIndex(1)
+                self.right_language_combo.setCurrentIndex(0)
         self.loading = False
         self.translate()
 
