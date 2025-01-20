@@ -35,7 +35,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: Windows-Executable
-          path: dist/program.exe
+          path: dist/libretranslateGUI.exe
 
   # Build on Linux
   build-linux:
@@ -62,4 +62,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: Linux-Executable
-          path: dist/program
+          path: dist/libretranslateGUI
