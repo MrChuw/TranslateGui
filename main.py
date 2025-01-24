@@ -213,8 +213,8 @@ class GUIWindow(QMainWindow):
         right_index = self.right_language_combo.currentIndex()
         if left_index == 0:
             self.right_textEdit.setPlainText(f"Unable to swap Auto with {self.languages[right_index + 1].name}")
-        self.left_language_combo.setCurrentIndex(self.right_language_combo.currentIndex())
-        self.right_language_combo.setCurrentIndex(left_index)
+        self.left_language_combo.setCurrentIndex(right_index + 1)
+        self.right_language_combo.setCurrentIndex(left_index - 1)
 
     def about_action_triggered(self):
         about_message_box = QMessageBox()
