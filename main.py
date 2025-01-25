@@ -282,7 +282,7 @@ class GUIWindow(QMainWindow):
         self.translation_timer = QTimer()
         self.translation_timer.setSingleShot(True)
         self.translation_timer.timeout.connect(self.translate)
-        
+
         # Threading
         self.worker_thread = None
 
@@ -319,7 +319,7 @@ class GUIWindow(QMainWindow):
         self.right_textEdit = PlainPasteTextEdit()
         self.right_textEdit.setPlaceholderText("Target")
         self.right_textEdit.setReadOnly(True)
-        
+
         # Layout for text edits
         self.textEdit_layout = QHBoxLayout()
         self.textEdit_layout.addWidget(self.left_textEdit)
@@ -353,8 +353,7 @@ class GUIWindow(QMainWindow):
         # Set focus to the left_textEdit when the window opens
         self.left_textEdit.setFocus()
 
-        url_key = self.orm.get_api_settings()
-        if url_key:
+        if url_key := self.orm.get_api_settings():
             self.api_window = ApiKeyGui(self.orm)
             self.api_window.url_edit.setText(url_key["api_url"])
             self.api_window.url = url_key["api_url"]

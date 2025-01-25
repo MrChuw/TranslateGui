@@ -29,7 +29,7 @@ jobs:
           pip install pyinstaller
 
       - name: Build Windows Executable
-        run: pyinstaller --onefile --name LibreTranslateGUI.exe main.py
+        run: pyinstaller --onefile --icon="img/icon.png" --name LibreTranslateGUI.exe main.py
 
       - name: Upload Windows Executable
         uses: actions/upload-artifact@v4
@@ -56,7 +56,7 @@ jobs:
           pip install pyinstaller
 
       - name: Build Linux Executable
-        run: pyinstaller --onefile --name LibreTranslateGUI main.py
+        run: pyinstaller --onefile --icon="img/icon.png" --name LibreTranslateGUI main.py
 
       - name: Upload Linux Executable
         uses: actions/upload-artifact@v4
