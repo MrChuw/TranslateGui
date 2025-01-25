@@ -348,12 +348,12 @@ class GUIApplication:
         # Create Show action
         menu = QMenu()
         action = QAction("Show")
-        action.triggered.connect(self.main_window.show)
+        action.triggered.connect(self.show)
         menu.addAction(action)
 
         # Create Hide action
         hide_action = QAction("Hide")
-        hide_action.triggered.connect(self.main_window.hide)
+        hide_action.triggered.connect(self.hide)
         menu.addAction(hide_action)
 
         # Add a Quit option to the menu.
@@ -370,7 +370,13 @@ class GUIApplication:
         self.main_window.show()
         self.app.exec()
 
+    def show(self):
+        self.main_window.show()
+        self.main_window.move(self.position)  # Dont work on wayland.
 
+    def hide(self):
+        self.position = self.main_window.pos()
+        self.main_window.hide()
 
     def guarantee_icon(self, data_path: Path):
         if not (data_path / "icon.png").exists():
@@ -387,3 +393,4 @@ def main():
 
 
 main()
+
