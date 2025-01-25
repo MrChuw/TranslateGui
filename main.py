@@ -5,17 +5,20 @@ from functools import partial
 from pathlib import Path
 from logging import Logger
 from orm import MiniORM
-
+from datetime import datetime, timezone
 from PySide6.QtCore import (
     QThread,
     Signal,
     QTimer,
-    
+    Qt,
+    QSize,
 )
 
 from PySide6.QtGui import (
     QIcon,
     QAction,
+    QColor,
+    
     
 )
 
@@ -33,6 +36,9 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QSystemTrayIcon,
     QMenu,
+    QListWidget,
+    QListWidgetItem,
+    
     
 )
 from libretranslatepy import LibreTranslateAPI
@@ -110,6 +116,151 @@ class TranslationThread(QThread):
         self.send_text_update.emit(translated_text)
 
 
+class HistoryWindow(QMainWindow):
+    def __init__(self, history, orm: MiniORM):
+        super().__init__()
+        self.history = history
+        self.orm = orm
+        self.setWindowIcon(QIcon(str(Path(__file__).parent / "icon.png")))
+        self.resize(460, 350)
+
+
+        # Menu
+        self.menu = self.menuBar()
+        self.refresh_action = self.menu.addAction("Refresh")
+        self.refresh_action.triggered.connect(self.refresh)
+
+        self.clean_history_action = self.menu.addAction("Clean History")
+        self.clean_history_action.triggered.connect(self.are_you_sure)
+        self.clean_history_action.toolTip = "This will delete all history entries."
+
+
+        # Create central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        # Create layout for central widget
+        self.layout = QVBoxLayout()
+        central_widget.setLayout(self.layout)
+
+        # History list widget
+        self.history_list = QListWidget()
+        
+        # Add items to the list widget
+        for entry in self.history:
+            item = f"From: {entry['source_language']} To: {entry['target_language']}\n" \
+                   f"Input: {entry['input_text']}\nOutput: {entry['output_text']}\n" \
+                   f"Timestamp: {self._convert_timestamp(entry['timestamp'])}"
+            self.history_list.addItem(item)
+            self.add_separator()
+
+        self.layout.addWidget(self.history_list)
+
+        # Close button
+        self.close_button = QPushButton("Close")
+        self.layout.addWidget(self.close_button)
+        self.close_button.clicked.connect(self.close)
+
+        # Set window title
+        self.setWindowTitle("History")
+
+        # Add context menu to the list widget
+        self.history_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.history_list.customContextMenuRequested.connect(self.show_context_menu)
+
+    def show_context_menu(self, position):
+        # Create context menu
+        context_menu = QMenu()
+
+        # Add actions to copy input or output
+        copy_input_action = QAction("Copy Input", self)
+        copy_input_action.triggered.connect(self.copy_input_text)
+        context_menu.addAction(copy_input_action)
+
+        copy_output_action = QAction("Copy Output", self)
+        copy_output_action.triggered.connect(self.copy_output_text)
+        context_menu.addAction(copy_output_action)
+
+        # Show context menu at the current position
+        context_menu.exec(self.history_list.mapToGlobal(position))
+
+    def copy_input_text(self):
+        # Get the selected item from the list
+        selected_item = self.history_list.currentItem()
+        if selected_item:
+            # Extract the input text from the item and copy it to the clipboard
+            input_text = self.extract_input_output_text(selected_item.text(), "Input")
+            if input_text:
+                clipboard = QApplication.clipboard()
+                clipboard.setText(input_text)
+            else:
+                self.show_message("Error", "Input text not found.")
+
+    def copy_output_text(self):
+        # Get the selected item from the list
+        selected_item = self.history_list.currentItem()
+        if selected_item:
+            # Extract the output text from the item and copy it to the clipboard
+            output_text = self.extract_input_output_text(selected_item.text(), "Output")
+            if output_text:
+                clipboard = QApplication.clipboard()
+                clipboard.setText(output_text)
+            else:
+                self.show_message("Error", "Output text not found.")
+
+    def extract_input_output_text(self, item_text, text_type):
+        # Extract either input or output text from the item text based on the type
+        lines = item_text.split("\n")
+        for line in lines:
+            if line.startswith(f"{text_type}:"):
+                # Return the part after "Input:" or "Output:"
+                return line.split(":")[1].strip()
+        return None
+
+    def show_message(self, title, message):
+        # Show a message box with the provided title and message
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.exec()
+
+    def add_separator(self):
+        # Create a separator item (no text, but can style it)
+        separator_item = QListWidgetItem("")
+        separator_item.setFlags(Qt.ItemFlags())  # Disable selection of the separator item
+        separator_item.setBackground(QColor(220, 220, 220, 100))  # Light grey color for separator
+        separator_item.setSizeHint(QSize(0, 5))
+        self.history_list.addItem(separator_item)
+
+    def refresh(self):
+        history = self.orm.get_translation_history()
+        self.history_list.clear()
+        for entry in history:
+            item = f"From: {entry['source_language']} To: {entry['target_language']}\n" \
+                   f"Input: {entry['input_text']}\nOutput: {entry['output_text']}\n" \
+                   f"Timestamp: {self._convert_timestamp(entry['timestamp'])}"
+            self.history_list.addItem(item)
+            self.add_separator()
+
+    def are_you_sure(self):
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Are you sure?")
+        msg_box.setText("Are you sure you want to clear the history?")
+        msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg_box.setDefaultButton(QMessageBox.No)
+        result = msg_box.exec()
+        if result == QMessageBox.Yes:
+            self.orm.clear_translation_history()
+            self.refresh()
+        return result
+
+    def _convert_timestamp(self, timestamp):
+        utc_datetime = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+        utc_datetime = utc_datetime.replace(tzinfo=timezone.utc)  # Make sure it's timezone-aware
+        local_datetime = utc_datetime.astimezone(None)  # Convert UTC to local time
+        return local_datetime.strftime('%Y-%m-%d %H:%M:%S')
+
+
 class GUIWindow(QMainWindow):
     # Above this number of characters in the input text will show a
     # message in the output text while the translation
@@ -159,31 +310,36 @@ class GUIWindow(QMainWindow):
         self.left_language_combo.currentIndexChanged.connect(self.save_language_selected)
         self.right_language_combo.currentIndexChanged.connect(self.save_language_selected)
 
-        # TextEdits
+        # Initialize the text edits
         self.left_textEdit = PlainPasteTextEdit()
         self.left_textEdit.setPlaceholderText("Source")
+        self.left_textEdit.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.left_textEdit.textChanged.connect(self.on_text_changed)
+
         self.right_textEdit = PlainPasteTextEdit()
         self.right_textEdit.setPlaceholderText("Target")
         self.right_textEdit.setReadOnly(True)
+        
+        # Layout for text edits
         self.textEdit_layout = QHBoxLayout()
         self.textEdit_layout.addWidget(self.left_textEdit)
         self.textEdit_layout.addWidget(self.right_textEdit)
 
         # Menu
         self.menu = self.menuBar()
-        self.manage_packages_action = self.menu.addAction("Edit API URL and Key")
+        self.manage_packages_action = self.menu.addAction("Edit API and Key")
         self.manage_packages_action.triggered.connect(self.manage_packages_action_triggered)
 
-
-        self.menu = self.menuBar()
         self.manage_packages_action = self.menu.addAction("Refresh Languages")
         self.manage_packages_action.triggered.connect(self.load_languages)
 
-        
+        self.history_action = self.menu.addAction("History")
+        self.history_action.triggered.connect(self.history_action_triggered)
+
         self.about_action = self.menu.addAction("About")
         self.about_action.triggered.connect(self.about_action_triggered)
         self.menu.setNativeMenuBar(False)
+
 
         # Final setup
         self.window_layout = QVBoxLayout()
@@ -193,6 +349,9 @@ class GUIWindow(QMainWindow):
         self.central_widget.setLayout(self.window_layout)
         self.setCentralWidget(self.central_widget)
         self.setWindowTitle("LibreTranslate GUI")
+
+        # Set focus to the left_textEdit when the window opens
+        self.left_textEdit.setFocus()
 
         url_key = self.orm.get_api_settings()
         if url_key:
@@ -283,7 +442,7 @@ class GUIWindow(QMainWindow):
             self.worker_thread.start()
             self.queued_translation = None
 
-    def translate(self):  # DONE MAYBE
+    def translate(self):    # DONE
         """Try to translate based on languages selected."""
         if len(self.languages) < 1:
             return
@@ -294,14 +453,10 @@ class GUIWindow(QMainWindow):
         input_language = self.languages[input_combo_value]
         output_combo_value = self.right_language_combo.currentIndex()
         output_language = self.languages[output_combo_value + 1]
-        translation = self.lt.translate(input_text, input_language.code, output_language.code)
-        if translation:
-            # bound_translation_function = partial(translation.translate, input_text)
+        if translation := self.lt.translate(input_text, input_language.code, output_language.code):
             bound_translation_function = partial(lambda: translation)
             show_loading_message = len(input_text) > self.SHOW_LOADING_THRESHOLD
-            new_worker_thread = TranslationThread(
-                bound_translation_function, show_loading_message
-            )
+            new_worker_thread = TranslationThread(bound_translation_function, show_loading_message)
             new_worker_thread.send_text_update.connect(self.update_right_textEdit)
             new_worker_thread.finished.connect(self.handle_worker_thread_finished)
             if self.worker_thread is None:
@@ -312,6 +467,14 @@ class GUIWindow(QMainWindow):
         else:
             Logger.error("No translation available for this language pair")
             self.right_textEdit.setPlainText("No translation available for this language pair")
+        # Save History
+        if translation:
+            self.orm.add_translation_history(input_language.name, output_language.name, input_text, translation)
+
+    def history_action_triggered(self):
+        history = self.orm.get_translation_history()
+        self.history_window = HistoryWindow(history, self.orm)
+        self.history_window.show()
 
 
 class GUIApplication:
