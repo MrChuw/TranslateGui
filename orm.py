@@ -1,19 +1,8 @@
 import sqlite3
 import os
-import platform
 
 class MiniORM:
-    def __init__(self, db_name="settings.db"):
-        system = platform.system()
-        if system == "Linux":
-            data_dir = os.path.expanduser("~/.local/share/LibreTranslateGUI/")
-        elif system == "Windows":
-            data_dir = os.path.join(os.getenv("APPDATA"), "LibreTranslateGUI")
-        else:
-            data_dir = os.path.expanduser("~/.local/share/LibreTranslateGUI/")
-
-        if not os.path.exists(data_dir):
-            os.makedirs(data_dir)
+    def __init__(self, data_dir, db_name="settings.db"):
         self.db_path = os.path.join(data_dir, db_name)
         self.connection = sqlite3.connect(self.db_path)
         self.cursor = self.connection.cursor()

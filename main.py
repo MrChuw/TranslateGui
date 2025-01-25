@@ -1,4 +1,6 @@
 import os
+import platform
+import urllib.request
 from functools import partial
 from pathlib import Path
 from logging import Logger
@@ -7,11 +9,14 @@ from orm import MiniORM
 from PySide6.QtCore import (
     QThread,
     Signal,
-    QTimer
+    QTimer,
+    
 )
 
 from PySide6.QtGui import (
     QIcon,
+    QAction,
+    
 )
 
 from PySide6.QtWidgets import (
@@ -25,7 +30,10 @@ from PySide6.QtWidgets import (
     QComboBox, 
     QMessageBox,
     QMainWindow,
-    QLineEdit
+    QLineEdit,
+    QSystemTrayIcon,
+    QMenu,
+    
 )
 from libretranslatepy import LibreTranslateAPI
 
@@ -109,18 +117,20 @@ class GUIWindow(QMainWindow):
     SHOW_LOADING_THRESHOLD = 300
     TYPING_DELAY = 500  # In milliseconds
 
-    def __init__(self):
+    def __init__(self, data_dir: Path):
         super().__init__()
+        self.setWindowIcon(QIcon(str(data_dir / "icon.png")))  # Set the window icon
+
+        # Set the tray icon attribute
+        self.tray_icon = None
 
         self.loading = True
-        self.orm = MiniORM()
+        self.orm = MiniORM(data_dir=data_dir)
 
 
         self.translation_timer = QTimer()
         self.translation_timer.setSingleShot(True)
         self.translation_timer.timeout.connect(self.translate)
-
-
         
         # Threading
         self.worker_thread = None
@@ -210,10 +220,15 @@ class GUIWindow(QMainWindow):
 
     def swap_languages_button_clicked(self):  # DONE
         left_index = self.left_language_combo.currentIndex()
+        left_text = self.left_textEdit.toPlainText()
         right_index = self.right_language_combo.currentIndex()
+        right_text = self.right_textEdit.toPlainText()
         if left_index == 0:
             self.right_textEdit.setPlainText(f"Unable to swap Auto with {self.languages[right_index + 1].name}")
+
+        self.left_textEdit.setPlainText(right_text)
         self.left_language_combo.setCurrentIndex(right_index + 1)
+        self.right_textEdit.setPlainText(left_text)
         self.right_language_combo.setCurrentIndex(left_index - 1)
 
     def about_action_triggered(self):
@@ -301,17 +316,71 @@ class GUIWindow(QMainWindow):
 
 class GUIApplication:
     def __init__(self):
+        system = platform.system()
+        if system == "Linux" or system != "Windows":
+            data_dir = os.path.expanduser("~/.local/share/LibreTranslateGUI/")
+        else:
+            data_dir = os.path.join(os.getenv("APPDATA"), "LibreTranslateGUI")
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+
+        data_dir = Path(data_dir)
+        self.guarantee_icon(data_dir)
+
         self.app = QApplication([])
-        self.main_window = GUIWindow()
-        self.main_window.resize(650, 315)
 
         # Icon
-        icon_path = Path(os.path.dirname(__file__)) / "img" / "icon.png"
-        icon_path = str(icon_path)
-        self.app.setWindowIcon(QIcon(icon_path))
+        icon_path = Path(data_dir) / "icon.png"
+        qicon = QIcon(str(icon_path))
+
+        self.main_window = GUIWindow(data_dir=data_dir)
+        self.main_window.resize(650, 315)
+        self.main_window.setWindowIcon(qicon)
+        self.app.setWindowIcon(qicon)
+        self.app.setDesktopFileName("LibreTranslateGUI")
+
+
+        # Create the tray
+        self.tray_icon = QSystemTrayIcon()
+        self.tray_icon.setIcon(qicon)
+        self.tray_icon.setVisible(True)
+
+        # Create Show action
+        menu = QMenu()
+        action = QAction("Show")
+        action.triggered.connect(self.main_window.show)
+        menu.addAction(action)
+
+        # Create Hide action
+        hide_action = QAction("Hide")
+        hide_action.triggered.connect(self.main_window.hide)
+        menu.addAction(hide_action)
+
+        # Add a Quit option to the menu.
+        quit_action = QAction("Quit")
+        quit_action.triggered.connect(self.app.quit)
+        menu.addAction(quit_action)
+
+        # Add the menu to the tray
+        self.tray_icon.setContextMenu(menu)
+
+        # Set the tray icon attribute in the main window
+        self.main_window.tray_icon = self.tray_icon
 
         self.main_window.show()
         self.app.exec()
+
+
+
+    def guarantee_icon(self, data_path: Path):
+        if not (data_path / "icon.png").exists():
+            ICON_URL="https://raw.githubusercontent.com/MrChuw/TranslateGui/refs/heads/main/img/icon.png"
+            urllib.request.urlretrieve(ICON_URL, data_path / "icon.png")
+        if not (data_path / "icon.png").exists():
+            Logger.error("Unable to download icon from GitHub")
+            exit(1)
+
+
 
 def main():
     app = GUIApplication()

@@ -7,6 +7,18 @@ DESKTOP_FILE="/home/$USER/.local/share/applications/$APP_NAME.desktop"
 VENV_DIR="./.venv"
 PYTHON_VERSION="3.12.5"  # Ensure this Python version is installed
 
+# Determine the data directory based on the operating system
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    DATA_DIR="$HOME/.local/share/$APP_NAME"
+elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+    DATA_DIR="$(cygpath -u "$APPDATA")/$APP_NAME"
+else
+    DATA_DIR="$HOME/.local/share/$APP_NAME"
+fi
+ICON_PATH="$DATA_DIR/icon.png"
+ICON_URL="https://raw.githubusercontent.com/MrChuw/TranslateGui/refs/heads/main/img/icon.png"
+
+
 # Step 1: Check if the required Python version is installed
 if ! pyenv versions | grep -q "$PYTHON_VERSION"; then
     echo "Python $PYTHON_VERSION is not installed. Installing it with pyenv..."
@@ -31,7 +43,7 @@ pip install -r requirements.txt  # Install project dependencies
 
 # Step 4: Build the binary with PyInstaller
 echo "Building the binary with PyInstaller..."
-pyinstaller --onefile main.py -n $APP_NAME
+pyinstaller --onefile --icon="img/icon.png"  main.py -n $APP_NAME
 
 # Step 5: Create a symbolic link to the binary
 if [ -L "$BIN_PATH" ]; then
@@ -67,11 +79,27 @@ Type=Application
 Name=$APP_NAME
 Comment=$APP_NAME
 Exec=$BIN_PATH
-Icon=$BIN_PATH
+Icon=$ICON_PATH
 Terminal=false
 Categories=Network;Languages;Office;
 EOF
     chmod +x "$DESKTOP_FILE"
+fi
+
+# Ensure the data directory exists
+if [ ! -d "$DATA_DIR" ]; then
+    echo "Creating data directory at $DATA_DIR..."
+    mkdir -p "$DATA_DIR"
+fi
+
+# Download the icon if it does not exist
+if [ ! -f "$ICON_PATH" ]; then
+    echo "Downloading icon from $ICON_URL..."
+    curl -o "$ICON_PATH" -L "$ICON_URL"
+    if [ $? -ne 0 ]; then
+        echo "Failed to download the icon. Please check the URL or your internet connection."
+        exit 1
+    fi
 fi
 
 # Step 7: Final checks
